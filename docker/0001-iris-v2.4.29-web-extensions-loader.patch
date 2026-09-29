@@ -1,0 +1,130 @@
+diff --git a/source/app/iris_engine/web_extensions.py b/source/app/iris_engine/web_extensions.py
+new file mode 100644
+index 0000000..af9fe02
+--- /dev/null
++++ b/source/app/iris_engine/web_extensions.py
+@@ -0,0 +1,52 @@
++#  IRIS Source Code
++#
++#  This program is free software; you can redistribute it and/or
++#  modify it under the terms of the GNU Lesser General Public
++#  License as published by the Free Software Foundation; either
++#  version 3 of the License, or (at your option) any later version.
++"""Optional web extensions shipped by pip-installed IRIS modules.
++
++A package declares an entry point in the ``iris.web_extensions`` group pointing
++to a callable ``init_app(app)``. The callable may register Flask blueprints and
++append URLs to ``IRIS_WEB_EXTENSION_SCRIPTS`` / ``IRIS_WEB_EXTENSION_STYLESHEETS``,
++which the default layout includes on every page.
++
++Extensions are loaded before post-init so their SQLAlchemy models are created
++by ``db.create_all()``. A failing extension is logged and skipped: it can never
++prevent IRIS from starting. Set IRIS_DISABLED_WEB_EXTENSIONS to a comma
++separated list of entry point names to skip some of them.
++"""
++import os
++from importlib.metadata import entry_points
++
++ENTRY_POINT_GROUP = 'iris.web_extensions'
++
++
++def _iter_entry_points():
++    eps = entry_points()
++    if hasattr(eps, 'select'):
++        return eps.select(group=ENTRY_POINT_GROUP)
++    return eps.get(ENTRY_POINT_GROUP, [])
++
++
++def load_web_extensions(flask_app):
++    flask_app.config.setdefault('IRIS_WEB_EXTENSION_SCRIPTS', [])
++    flask_app.config.setdefault('IRIS_WEB_EXTENSION_STYLESHEETS', [])
++    disabled = {name.strip() for name in os.getenv('IRIS_DISABLED_WEB_EXTENSIONS', '').split(',') if name.strip()}
++
++    for entry_point in _iter_entry_points():
++        if entry_point.name in disabled:
++            flask_app.logger.info(f'Web extension {entry_point.name} disabled by configuration')
++            continue
++        try:
++            entry_point.load()(flask_app)
++            flask_app.logger.info(f'Loaded web extension {entry_point.name}')
++        except Exception:
++            flask_app.logger.exception(f'Unable to load web extension {entry_point.name}, skipping it')
++
++    @flask_app.context_processor
++    def inject_web_extensions():
++        return {
++            'iris_extension_scripts': flask_app.config['IRIS_WEB_EXTENSION_SCRIPTS'],
++            'iris_extension_stylesheets': flask_app.config['IRIS_WEB_EXTENSION_STYLESHEETS'],
++        }
+diff --git a/source/app/templates/layouts/default.html b/source/app/templates/layouts/default.html
+index 00ff894..77b6adf 100644
+--- a/source/app/templates/layouts/default.html
++++ b/source/app/templates/layouts/default.html
+@@ -30,6 +30,9 @@
+ 
+     <!-- Specific CSS goes HERE -->
+     {% block stylesheets %}{% endblock stylesheets %}
++    {% for stylesheet in iris_extension_stylesheets %}
++    <link rel="stylesheet" href="{{ stylesheet }}">
++    {% endfor %}
+ 	{% if current_user.in_dark_mode %}
+ 		<link rel="stylesheet" href="/static/assets/css/dark-theme.css">
+ 	{% endif %}
+@@ -116,6 +119,9 @@
+ 
+ 	<!-- Specific JS goes HERE -->
+     {% block javascripts %}{% endblock javascripts %}
++    {% for script in iris_extension_scripts %}
++    <script src="{{ script }}"></script>
++    {% endfor %}
+ 	
+ </body>
+ </html>
+\ No newline at end of file
+diff --git a/source/app/templates/layouts/default_ext.html b/source/app/templates/layouts/default_ext.html
+index 4804c8e..a177cab 100644
+--- a/source/app/templates/layouts/default_ext.html
++++ b/source/app/templates/layouts/default_ext.html
+@@ -29,6 +29,9 @@
+ 
+     <!-- Specific CSS goes HERE -->
+     {% block stylesheets %}{% endblock stylesheets %}
++    {% for stylesheet in iris_extension_stylesheets %}
++    <link rel="stylesheet" href="{{ stylesheet }}">
++    {% endfor %}
+ 	{% if current_user.in_dark_mode %}
+ 		<link rel="stylesheet" href="/static/assets/css/dark-theme.css">
+ 	{% endif %}
+@@ -98,6 +101,9 @@
+ 
+ 	<!-- Specific JS goes HERE -->
+     {% block javascripts %}{% endblock javascripts %}
++    {% for script in iris_extension_scripts %}
++    <script src="{{ script }}"></script>
++    {% endfor %}
+ 	
+ </body>
+ </html>
+\ No newline at end of file
+diff --git a/source/app/views.py b/source/app/views.py
+index 6f30eeb..009637b 100644
+--- a/source/app/views.py
++++ b/source/app/views.py
+@@ -68,6 +68,7 @@ from app.blueprints.search.search_routes import search_blueprint
+ from app.blueprints.statistics.statistics_routes import stats_blueprint
+ from app.models.authorization import User
+ from app.post_init import run_post_init
++from app.iris_engine.web_extensions import load_web_extensions
+ 
+ 
+ app.register_blueprint(dashboard_blueprint)
+@@ -114,6 +115,9 @@ app.register_blueprint(custom_dashboard_blueprint)
+ app.register_blueprint(api_blueprint)
+ app.register_blueprint(demo_blueprint)
+ 
++# Blueprints, scripts and models provided by pip-installed modules (iris.web_extensions entry points)
++load_web_extensions(app)
++
+ try:
+ 
+     run_post_init(development=app.config["DEVELOPMENT"])

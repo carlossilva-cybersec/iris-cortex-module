@@ -1,0 +1,67 @@
+# Local Cortex (development / functional tests) wired to the IRIS stack.
+#
+#   cd docker/cortex-local
+#   cp .env.example .env            # then edit CORTEX_JOBS_HOST_DIR and the secret
+#   docker compose up -d
+#   python3 bootstrap.py            # superadmin, organisation, users, analyzers, IRIS API key
+#
+# Cortex UI: http://localhost:9001   From IRIS containers: http://cortex:9001
+#
+# Analyzers and responders run as sibling containers through the Docker socket. Cortex writes
+# job files in CORTEX_JOBS_HOST_DIR and gives that HOST path to Docker, so the directory must be
+# mounted at the same path and be shared with Docker Desktop (paths under /Users are shared by
+# default). Avoid spaces in that path.
+#
+# NOT a production deployment: single-node Elasticsearch without security, Cortex over HTTP.
+name: cortex-local
+
+services:
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:7.17.25
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - script.allowed_types=inline
+      - thread_pool.search.queue_size=100000
+      - thread_pool.write.queue_size=10000
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m
+    volumes:
+      - cortex_es_data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs http://localhost:9200/_cluster/health?wait_for_status=yellow&timeout=5s || exit 1"]
+      interval: 10s
+      retries: 30
+    restart: unless-stopped
+
+  cortex:
+    image: thehiveproject/cortex:3.1.8
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    command:
+      - --es-uri
+      - http://elasticsearch:9200
+      - --secret
+      - ${CORTEX_SECRET:?set CORTEX_SECRET in .env}
+      - --job-directory
+      - ${CORTEX_JOBS_HOST_DIR:?set CORTEX_JOBS_HOST_DIR in .env}
+      - --docker-job-directory
+      - ${CORTEX_JOBS_HOST_DIR}
+    user: root                     # needs the Docker socket to start analyzer containers
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ${CORTEX_JOBS_HOST_DIR}:${CORTEX_JOBS_HOST_DIR}
+    ports:
+      - "127.0.0.1:9001:9001"
+    networks:
+      default: {}
+      iris_backend:
+        aliases: [cortex]
+    restart: unless-stopped
+
+networks:
+  iris_backend:
+    external: true
+
+volumes:
+  cortex_es_data:

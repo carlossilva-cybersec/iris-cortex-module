@@ -1,0 +1,41 @@
+# Overlay for the iris-web v2.4.29 docker-compose stack.
+#
+#   cd iris-web
+#   IRIS_CORTEX_MODULE_PATH=../iris-cortex-module docker compose -f docker-compose.yml \
+#       -f ../iris-cortex-module/docker/docker-compose.cortex.yml up -d --build
+#
+# With iris-email-module too (build the email image first, then stack on it):
+#   IRIS_CORTEX_BASE_IMAGE=iriswebapp_app_email:v2.4.29 docker compose -f docker-compose.yml \
+#       -f ../iris-email-module/docker/docker-compose.email.yml \
+#       -f ../iris-cortex-module/docker/docker-compose.cortex.yml up -d --build
+#
+# The Cortex API key never goes into IRIS: put IRIS_CORTEX_API_KEY=... in iris-web/.env
+# (loaded by app and worker), or use IRIS_CORTEX_API_KEY_FILE with a Docker secret.
+services:
+  app:
+    build:
+      context: ${IRIS_CORTEX_MODULE_PATH:-../iris-cortex-module}
+      dockerfile: docker/Dockerfile
+      args:
+        BASE_IMAGE: ${IRIS_CORTEX_BASE_IMAGE:-ghcr.io/dfir-iris/iriswebapp_app:v2.4.29}
+    image: iriswebapp_app_cortex:v2.4.29
+    pull_policy: build
+
+  # The worker follows Cortex jobs: it must run the same image as the app.
+  worker:
+    image: iriswebapp_app_cortex:v2.4.29
+    pull_policy: never
+
+  # Cortex API simulator for tests. Start with --profile cortextest and set
+  # cortex_url=http://mock-cortex:9001 and IRIS_CORTEX_API_KEY=test-key.
+  mock-cortex:
+    build:
+      context: ${IRIS_CORTEX_MODULE_PATH:-../iris-cortex-module}
+      dockerfile: docker/mock-cortex.Dockerfile
+    image: iris_mock_cortex:latest
+    profiles: ["cortextest"]
+    command: ["--api-key", "test-key:SOC", "--api-key", "acme-key:ACME"]
+    networks:
+      - iris_backend
+    ports:
+      - "127.0.0.1:9011:9001"   # 9001 is left to a real local Cortex (docker/cortex-local)

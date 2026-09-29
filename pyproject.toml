@@ -1,0 +1,36 @@
+[build-system]
+requires = ["setuptools>=61", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "iris-cortex-module"
+version = "1.0.0"
+description = "DFIR-IRIS module to run Cortex analyzers and responders from IOCs, evidences, files, cases and alerts"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "LGPL-3.0-or-later" }
+dependencies = [
+    "requests>=2.25",
+]
+
+[project.optional-dependencies]
+test = [
+    "pytest>=7",
+]
+
+# Picked up by the IRIS web-extension loader (see docker/0001-...patch).
+[project.entry-points."iris.web_extensions"]
+iris_cortex_module = "iris_cortex_module.integration.extension:init_app"
+
+[tool.setuptools]
+packages = [
+    "iris_cortex_module",
+    "iris_cortex_module.core",
+    "iris_cortex_module.integration",
+]
+
+[tool.setuptools.package-data]
+iris_cortex_module = ["static/*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

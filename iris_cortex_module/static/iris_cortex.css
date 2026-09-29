@@ -1,0 +1,7 @@
+#iris_cortex_modal .iris-cortex-scroll { max-height: 320px; overflow: auto; }
+#iris_cortex_modal .iris-cortex-json { font-family: Consolas, Menlo, monospace; font-size: 12px; border: 1px solid rgba(128,128,128,.3); padding: 6px; }
+#iris_cortex_modal .iris-cortex-tree { list-style: none; padding-left: 16px; margin: 0; }
+#iris_cortex_modal .iris-cortex-key { color: #6f42c1; }
+#iris_cortex_modal details > summary { cursor: pointer; }
+#iris_cortex_modal pre { white-space: pre-wrap; word-break: break-all; }
+#iris_cortex_modal .badge { white-space: normal; }

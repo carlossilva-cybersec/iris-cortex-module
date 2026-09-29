@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.eggs/
+.venv/
+venv/
+
+# Tests / tooling
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# Secrets and local configuration -- never commit
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*_password*.txt
+secrets/
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+
+# Local Cortex bootstrap output (generated passwords)
+.credentials
